@@ -81,18 +81,13 @@ fn isElevated() bool {
 	return elev.TokenIsElevated != 0;
 }
 
-fn confirmEndTask(hwnd: win32.HWND, name: [*:0]const u16, pid: win32.DWORD) bool {
+fn confirmEnd(hwnd: win32.HWND, name: [*:0]const u16, pid: win32.DWORD, tree: bool) bool {
 	if (state.prefs.skip_kill_confirm) return true;
 	var message: [512:0]u16 = std.mem.zeroes([512:0]u16);
-	wfmt.format(&message, 512, "End \"%s\" (PID %u)?\n\nUnsaved data may be lost.", .{ if (name[0] != 0) name else L("this process"), pid });
-	return win32.MessageBoxW(hwnd, &message, L("Confirm End Task"), win32.MB_ICONQUESTION | win32.MB_YESNO | win32.MB_DEFBUTTON2) == win32.IDYES;
-}
-
-fn confirmEndTree(hwnd: win32.HWND, name: [*:0]const u16, pid: win32.DWORD) bool {
-	if (state.prefs.skip_kill_confirm) return true;
-	var message: [512:0]u16 = std.mem.zeroes([512:0]u16);
-	wfmt.format(&message, 512, "End \"%s\" (PID %u) and all its descendant processes?\n\nUnsaved data may be lost.", .{ if (name[0] != 0) name else L("this process"), pid });
-	return win32.MessageBoxW(hwnd, &message, L("Confirm End Process Tree"), win32.MB_ICONQUESTION | win32.MB_YESNO | win32.MB_DEFBUTTON2) == win32.IDYES;
+	const scope: win32.LPCWSTR = if (tree) L(" and all its descendant processes") else L("");
+	wfmt.format(&message, 512, "End \"%s\" (PID %u)%s?\n\nUnsaved data may be lost.", .{ if (name[0] != 0) name else L("this process"), pid, scope });
+	const title: win32.LPCWSTR = if (tree) L("Confirm End Process Tree") else L("Confirm End Task");
+	return win32.MessageBoxW(hwnd, &message, title, win32.MB_ICONQUESTION | win32.MB_YESNO | win32.MB_DEFBUTTON2) == win32.IDYES;
 }
 
 fn openItemLocation(path: [*:0]const u16) bool {
@@ -220,6 +215,13 @@ fn activeView() win32.HWND {
 	return if (state.prefs.tree_mode) state.hwnd_tree else state.hwnd_list;
 }
 
+// Shows whichever of the list and tree the tree_mode pref asks for. Only
+// meaningful while the Processes tab is up; showTab owns the other case.
+fn showProcessView() void {
+	_ = win32.ShowWindow(state.hwnd_list, if (state.prefs.tree_mode) win32.SW_HIDE else win32.SW_SHOW);
+	_ = win32.ShowWindow(state.hwnd_tree, if (state.prefs.tree_mode) win32.SW_SHOW else win32.SW_HIDE);
+}
+
 fn refreshActiveTab() void {
 	if (state.active_tab == TAB_SERVICES) services.doRefresh() else listview.doRefresh();
 }
@@ -280,6 +282,29 @@ fn pointFromLparam(lp: win32.LPARAM) win32.POINT {
 	const x: i16 = @bitCast(@as(u16, @truncate(ulp)));
 	const y: i16 = @bitCast(@as(u16, @truncate(ulp >> 16)));
 	return .{ .x = x, .y = y };
+}
+
+// A sort button click or a header click: picking the active column again flips
+// its direction, picking another one switches to it with that column's own
+// remembered direction.
+fn sortByColumn(cid: usize) void {
+	if (settings.COLUMNS[cid].field == state.prefs.field) {
+		const fi: usize = @intCast(@intFromEnum(state.prefs.field));
+		state.prefs.desc[fi] = !state.prefs.desc[fi];
+	} else {
+		state.prefs.field = settings.COLUMNS[cid].field;
+	}
+	sortbar.updateSortUi();
+	sortbar.updateTabStop();
+	// Tree order is always by name (see listview.doRefresh/resort), so a
+	// field/direction change has no visible effect on it - skip the rebuild
+	// rather than pay for one that changes nothing on screen.
+	if (!state.prefs.tree_mode) listview.resort();
+	// No settings.save() here: this fires on every arrow-key repeat or click,
+	// and save() rewrites every column's desc/visible bit to the INI
+	// unconditionally (~230ms, measured - by far the largest single cost in
+	// this path). WM_DESTROY saves the final state on exit, same as every other
+	// transient UI interaction in this file.
 }
 
 fn getSelectedPid() win32.DWORD {
@@ -353,7 +378,7 @@ fn handleCommand(hwnd: win32.HWND, wp: win32.WPARAM) win32.LRESULT {
 					process.getProcessPath(pid, &path, @intCast(win32.MAX_PATH));
 					if (path[0] != 0) _ = openItemLocation(&path);
 				} else {
-					if (confirmEndTask(hwnd, &name, pid)) {
+					if (confirmEnd(hwnd, &name, pid, false)) {
 						_ = process.terminateProcess(pid);
 						listview.doRefresh();
 					}
@@ -375,7 +400,7 @@ fn handleCommand(hwnd: win32.HWND, wp: win32.WPARAM) win32.LRESULT {
 				process.getProcessPath(pid, &path, @intCast(win32.MAX_PATH));
 				if (path[0] != 0) _ = openItemLocation(&path);
 			} else if (id == resource.ID_CTX_END_TASK) {
-				if (confirmEndTask(hwnd, &name, pid)) {
+				if (confirmEnd(hwnd, &name, pid, false)) {
 					_ = process.terminateProcess(pid);
 					listview.doRefresh();
 					const count: i32 = @intCast(win32.SendMessageW(state.hwnd_list, win32.LVM_GETITEMCOUNT, 0, 0));
@@ -402,7 +427,7 @@ fn handleCommand(hwnd: win32.HWND, wp: win32.WPARAM) win32.LRESULT {
 			var name: [260:0]u16 = std.mem.zeroes([260:0]u16);
 			treeview.getSelectedName(&name, 260);
 			const pid = treeview.getSelectedPid();
-			if (confirmEndTree(hwnd, &name, pid)) {
+			if (confirmEnd(hwnd, &name, pid, true)) {
 				treeview.terminateFromItem(sel);
 				listview.doRefresh();
 			}
@@ -414,15 +439,8 @@ fn handleCommand(hwnd: win32.HWND, wp: win32.WPARAM) win32.LRESULT {
 		state.prefs.tree_mode = !state.prefs.tree_mode;
 		const view = win32.GetSubMenu(win32.GetMenu(hwnd), 1);
 		_ = win32.CheckMenuItem(view, resource.ID_VIEW_TREE_MODE, if (state.prefs.tree_mode) win32.MF_CHECKED else win32.MF_UNCHECKED);
-		if (state.prefs.tree_mode) {
-			_ = win32.ShowWindow(state.hwnd_list, win32.SW_HIDE);
-			_ = win32.ShowWindow(state.hwnd_tree, win32.SW_SHOW);
-			_ = win32.SetFocus(state.hwnd_tree);
-		} else {
-			_ = win32.ShowWindow(state.hwnd_tree, win32.SW_HIDE);
-			_ = win32.ShowWindow(state.hwnd_list, win32.SW_SHOW);
-			_ = win32.SetFocus(state.hwnd_list);
-		}
+		showProcessView();
+		_ = win32.SetFocus(activeView());
 		sortbar.updateTabStop();
 		listview.resort();
 		settings.save(&state.prefs);
@@ -518,24 +536,7 @@ fn handleCommand(hwnd: win32.HWND, wp: win32.WPARAM) win32.LRESULT {
 		}
 		for (0..@intCast(state.sort_btn_count)) |idx| {
 			if (resource.ID_SORT_BASE + state.sort_btn_cols[idx] == @as(i32, id)) {
-				const cid: usize = @intCast(state.sort_btn_cols[idx]);
-				if (settings.COLUMNS[cid].field == state.prefs.field) {
-					const fi: usize = @intCast(@intFromEnum(state.prefs.field));
-					state.prefs.desc[fi] = !state.prefs.desc[fi];
-				} else {
-					state.prefs.field = settings.COLUMNS[cid].field;
-				}
-				sortbar.updateSortUi();
-				sortbar.updateTabStop();
-				// Tree order is always by name (see listview.doRefresh/resort), so a
-				// field/direction change here has no visible effect on it - skip the
-				// rebuild rather than pay for one that changes nothing on screen.
-				if (!state.prefs.tree_mode) listview.resort();
-				// No settings.save() here: this fires on every arrow-key repeat or
-				// click, and save() rewrites every column's desc/visible bit to the
-				// INI unconditionally (~230ms, measured - by far the largest single
-				// cost in this handler). WM_DESTROY saves the final state on exit,
-				// same as every other transient UI interaction in this file.
+				sortByColumn(@intCast(state.sort_btn_cols[idx]));
 				break;
 			}
 		}
@@ -644,10 +645,7 @@ pub fn wndProc(hwnd: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win32.LP
 			sortbar.applyColumns();
 			services.applyColumns();
 			applyTheme(hwnd);
-			if (state.prefs.tree_mode) {
-				_ = win32.ShowWindow(state.hwnd_list, win32.SW_HIDE);
-				_ = win32.ShowWindow(state.hwnd_tree, win32.SW_SHOW);
-			}
+			showProcessView();
 			setTabOrder();
 			createMenuBar(hwnd);
 			tray.add(hwnd, state.WM_TRAYICON, &WINDOW_TITLE);
@@ -757,22 +755,8 @@ pub fn wndProc(hwnd: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win32.LP
 			if (hdr.idFrom == ID_LISTVIEW and hdr.code == @as(win32.UINT, @bitCast(win32.LVN_COLUMNCLICK))) {
 				const nmlv: *const win32.NMLISTVIEW = @ptrFromInt(@as(usize, @bitCast(lp)));
 				const col = nmlv.iSubItem;
-				if (col >= 0 and col < state.sort_btn_count) {
-					const cid: usize = @intCast(state.sort_btn_cols[@intCast(col)]);
-					if (settings.COLUMNS[cid].field == state.prefs.field) {
-						const fi: usize = @intCast(@intFromEnum(state.prefs.field));
-						state.prefs.desc[fi] = !state.prefs.desc[fi];
-					} else {
-						state.prefs.field = settings.COLUMNS[cid].field;
-					}
-					sortbar.updateSortUi();
-					sortbar.updateTabStop();
-					// A column header is only clickable while the listview itself is
-					// visible, i.e. never in tree mode, so no tree_mode guard is needed
-					// here the way there is at the sort-button handler above. No
-					// settings.save() either, for the same reason as that handler.
-					listview.resort();
-				}
+				if (col >= 0 and col < state.sort_btn_count)
+					sortByColumn(@intCast(state.sort_btn_cols[@intCast(col)]));
 			}
 			return win32.DefWindowProcW(hwnd, msg, wp, lp);
 		},
