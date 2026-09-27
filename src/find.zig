@@ -172,17 +172,9 @@ fn findDlgProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win32.LP
 				return 1;
 			}
 		},
-		win32.WM_CTLCOLORDLG => {
-			const br = theme.bgBrush();
-			if (br != null) return @bitCast(@intFromPtr(br));
-		},
-		win32.WM_CTLCOLORSTATIC, win32.WM_CTLCOLORBTN, win32.WM_CTLCOLOREDIT => {
-			const br = theme.ctlColor(@ptrFromInt(@as(usize, @bitCast(wp))));
-			if (br != null) return @bitCast(@intFromPtr(br));
-		},
 		else => {},
 	}
-	return 0;
+	return theme.dialogColors(msg, wp);
 }
 
 pub fn openDialog(parent: win32.HWND) void {

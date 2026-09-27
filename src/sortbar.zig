@@ -185,8 +185,8 @@ pub fn applyColumns() void {
 }
 
 pub fn applyTheme() void {
-	theme.applyButton(state.hwnd_sort_group);
-	for (0..@intCast(state.sort_btn_count)) |idx| theme.applyButton(state.sort_btns[idx]);
+	theme.applyControl(state.hwnd_sort_group);
+	for (0..@intCast(state.sort_btn_count)) |idx| theme.applyControl(state.sort_btns[idx]);
 }
 
 pub fn create(parent: win32.HWND) win32.HWND {

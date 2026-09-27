@@ -634,12 +634,12 @@ pub fn wndProc(hwnd: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win32.LP
 			theme.applyListview(state.hwnd_list);
 			theme.applyListview(state.hwnd_svc_list);
 			theme.applyTreeview(state.hwnd_tree);
-			_ = win32.SetWindowTheme(state.hwnd_status, if (theme.isDark() != 0) L("DarkMode_Explorer") else L("Explorer"), null);
+			theme.applyControl(state.hwnd_status);
 			if (state.prefs.tree_mode) {
 				_ = win32.ShowWindow(state.hwnd_list, win32.SW_HIDE);
 				_ = win32.ShowWindow(state.hwnd_tree, win32.SW_SHOW);
 			}
-			theme.applyButton(state.hwnd_tab);
+			theme.applyControl(state.hwnd_tab);
 			setTabOrder();
 			createMenuBar(hwnd);
 			tray.add(hwnd, state.WM_TRAYICON, &WINDOW_TITLE);
@@ -803,7 +803,7 @@ pub fn wndProc(hwnd: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win32.LP
 					theme.applyTitlebar(hwnd);
 					theme.applyListview(state.hwnd_list);
 					theme.applyTreeview(state.hwnd_tree);
-					_ = win32.SetWindowTheme(state.hwnd_status, if (theme.isDark() != 0) L("DarkMode_Explorer") else L("Explorer"), null);
+					theme.applyControl(state.hwnd_status);
 					sortbar.applyTheme();
 					_ = win32.RedrawWindow(hwnd, null, null, win32.RDW_INVALIDATE | win32.RDW_ERASE | win32.RDW_ALLCHILDREN);
 				}

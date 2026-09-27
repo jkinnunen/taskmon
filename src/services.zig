@@ -564,6 +564,6 @@ pub fn onSortCommand(index: usize) void {
 }
 
 pub fn applyTheme() void {
-	theme.applyButton(state.hwnd_svc_sort_group);
-	for (0..@intCast(state.svc_sort_count)) |i| theme.applyButton(state.svc_sort_btns[i]);
+	theme.applyControl(state.hwnd_svc_sort_group);
+	for (0..@intCast(state.svc_sort_count)) |i| theme.applyControl(state.svc_sort_btns[i]);
 }

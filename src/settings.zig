@@ -342,26 +342,11 @@ fn settingsLvProc(hwnd: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win32
 	return win32.DefSubclassProc(hwnd, msg, wp, lp);
 }
 
-fn pageColors(msg: win32.UINT, wp: win32.WPARAM) win32.INT_PTR {
-	switch (msg) {
-		win32.WM_CTLCOLORDLG => {
-			const br = theme.bgBrush();
-			if (br != null) return @bitCast(@intFromPtr(br));
-		},
-		win32.WM_CTLCOLORSTATIC, win32.WM_CTLCOLORBTN, win32.WM_CTLCOLORLISTBOX, win32.WM_CTLCOLOREDIT => {
-			const br = theme.ctlColor(@ptrFromInt(@as(usize, @bitCast(wp))));
-			if (br != null) return @bitCast(@intFromPtr(br));
-		},
-		else => {},
-	}
-	return 0;
-}
-
 fn generalPageProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win32.LPARAM) callconv(.c) win32.INT_PTR {
 	if (msg == win32.WM_INITDIALOG) {
 		const data: *SettingsDlgData = @ptrFromInt(@as(usize, @bitCast(lp)));
 		const combo = win32.GetDlgItem(hdlg, resource.IDC_REFRESH_COMBO);
-		_ = win32.SetWindowTheme(combo, if (theme.isDark() != 0) L("DarkMode_Explorer") else L("Explorer"), null);
+		theme.applyControl(combo);
 		var sel: i32 = 0;
 		for (0..REFRESH_OPTION_COUNT) |i| {
 			_ = win32.SendMessageW(combo, win32.CB_ADDSTRING, 0, @bitCast(@intFromPtr(REFRESH_LABELS[i])));
@@ -375,7 +360,7 @@ fn generalPageProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win3
 		_ = win32.SetDlgItemTextW(hdlg, resource.IDC_TRAY_TOKENS, tray.TOKENS);
 		return 1;
 	}
-	return pageColors(msg, wp);
+	return theme.dialogColors(msg, wp);
 }
 
 fn columnsPageProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win32.LPARAM) callconv(.c) win32.INT_PTR {
@@ -429,7 +414,7 @@ fn columnsPageProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win3
 		},
 		else => {},
 	}
-	return pageColors(msg, wp);
+	return theme.dialogColors(msg, wp);
 }
 
 fn settingsDlgProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win32.LPARAM) callconv(.c) win32.INT_PTR {
@@ -439,7 +424,7 @@ fn settingsDlgProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win3
 			theme.applyTitlebar(hdlg);
 			const tab = win32.GetDlgItem(hdlg, resource.IDC_SETTINGS_TAB);
 			_ = win32.SendMessageW(tab, win32.WM_SETFONT, @bitCast(win32.SendMessageW(hdlg, win32.WM_GETFONT, 0, 0)), 0);
-			theme.applyButton(tab);
+			theme.applyControl(tab);
 			for (0..TAB_COUNT) |i| {
 				var tci: win32.TCITEMW = std.mem.zeroes(win32.TCITEMW);
 				tci.mask = win32.TCIF_TEXT;
@@ -518,17 +503,9 @@ fn settingsDlgProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win3
 				return 1;
 			}
 		},
-		win32.WM_CTLCOLORDLG => {
-			const br = theme.bgBrush();
-			if (br != null) return @bitCast(@intFromPtr(br));
-		},
-		win32.WM_CTLCOLORSTATIC, win32.WM_CTLCOLORBTN, win32.WM_CTLCOLORLISTBOX, win32.WM_CTLCOLOREDIT => {
-			const br = theme.ctlColor(@ptrFromInt(@as(usize, @bitCast(wp))));
-			if (br != null) return @bitCast(@intFromPtr(br));
-		},
 		else => {},
 	}
-	return 0;
+	return theme.dialogColors(msg, wp);
 }
 
 pub fn open(parent: win32.HWND, prefs: *SortPrefs) ?Changes {
