@@ -1,6 +1,6 @@
 const std = @import("std");
 const win32 = @import("win32.zig");
-const resource = @import("resource.zig");
+const resource = @import("resource");
 const pt = @import("process_types.zig");
 const settings = @import("settings.zig");
 const theme = @import("theme.zig");

@@ -1,7 +1,7 @@
 const std = @import("std");
 const win32 = @import("win32.zig");
 const wndproc = @import("wndproc.zig");
-const resource = @import("resource.zig");
+const resource = @import("resource");
 const state = @import("state.zig");
 const L = std.unicode.utf8ToUtf16LeStringLiteral;
 

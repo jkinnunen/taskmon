@@ -1,6 +1,6 @@
 const std = @import("std");
 const win32 = @import("win32.zig");
-const resource = @import("resource.zig");
+const resource = @import("resource");
 const state = @import("state.zig");
 const theme = @import("theme.zig");
 const wfmt = @import("wfmt.zig");

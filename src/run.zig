@@ -1,6 +1,6 @@
 const std = @import("std");
 const win32 = @import("win32.zig");
-const resource = @import("resource.zig");
+const resource = @import("resource");
 const theme = @import("theme.zig");
 const L = std.unicode.utf8ToUtf16LeStringLiteral;
 

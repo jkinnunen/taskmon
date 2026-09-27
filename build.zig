@@ -27,6 +27,16 @@ pub fn build(b: *std.Build) void {
 		"include",
 		"any-windows-any",
 	}));
+	// resource.h is the single source of truth for resource IDs: the .rc
+	// file #includes it directly and Zig code imports it as the "resource"
+	// module via translate-c.
+	const resource_h = b.addTranslateC(.{
+		.root_source_file = b.path("src/resource.h"),
+		.target = target,
+		.optimize = optimize,
+		.link_libc = false,
+	});
+	exe_mod.addImport("resource", resource_h.createModule());
 	exe_mod.addWin32ResourceFile(.{
 		.file = b.path("src/taskmon.rc"),
 		.include_paths = &.{win32_headers},
