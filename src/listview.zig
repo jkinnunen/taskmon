@@ -75,33 +75,32 @@ fn formatCycleRate(rate: f64, buf: [*:0]u16, len: i32) void {
 		suffix = L(" K");
 		divisor = 1000.0;
 	}
-	const scaled = rate / divisor;
-	var whole: win32.UINT = @intFromFloat(scaled);
-	var frac: win32.UINT = @intFromFloat((scaled - @as(f64, @floatFromInt(whole))) * 100 + 0.5);
-	if (frac >= 100) {
-		whole += 1;
-		frac = 0;
-	}
+	const scaled = wfmt.fixed2(rate / divisor);
 	if (divisor == 1.0) {
-		wfmt.format(buf, len, "%u/s", .{whole});
+		wfmt.format(buf, len, "%d/s", .{scaled.whole});
 	} else {
-		wfmt.format(buf, len, "%u.%02u%s/s", .{ whole, frac, suffix });
+		wfmt.format(buf, len, "%d.%02d%s/s", .{ scaled.whole, scaled.frac, suffix });
 	}
+}
+
+fn formatPercent(value: f64, buf: [*:0]u16, len: i32) void {
+	const v = wfmt.fixed2(value);
+	wfmt.format(buf, len, "%d.%02d", .{ v.whole, v.frac });
+}
+
+// Bytes per second, or blank while nothing is moving.
+fn formatByteRate(rate: f64, buf: [*:0]u16, len: i32) void {
+	if (rate > 0) {
+		_ = win32.StrFormatByteSizeW(@intFromFloat(rate), buf, @intCast(len));
+		_ = win32.lstrcatW(buf, L("/s"));
+	} else buf[0] = 0;
 }
 
 fn formatColumn(e: *const pt.ProcessEntry, cid: i32, buf: [*:0]u16, len: i32) void {
 	@setEvalBranchQuota(100_000);
 	switch (@as(settings.SortField, @enumFromInt(cid))) {
 		.pid => wfmt.format(buf, len, "%u", .{e.pid}),
-		.cpu => {
-			var whole: i32 = @intFromFloat(e.cpu_percent);
-			var frac: i32 = @intFromFloat((e.cpu_percent - @as(f64, @floatFromInt(whole))) * 100 + 0.5);
-			if (frac >= 100) {
-				whole += 1;
-				frac = 0;
-			}
-			wfmt.format(buf, len, "%d.%02d", .{ whole, frac });
-		},
+		.cpu => formatPercent(e.cpu_percent, buf, len),
 		.memory => _ = win32.StrFormatByteSizeW(@intCast(e.working_set), buf, @intCast(len)),
 		.threads => wfmt.format(buf, len, "%u", .{e.threads}),
 		.handles => wfmt.format(buf, len, "%u", .{e.handles}),
@@ -141,12 +140,7 @@ fn formatColumn(e: *const pt.ProcessEntry, cid: i32, buf: [*:0]u16, len: i32) vo
 			else
 				wfmt.format(buf, len, "%02d/%02d/%04d %02d:%02d", .{ st.wMonth, st.wDay, st.wYear, st.wHour, st.wMinute });
 		},
-		.disk_io => {
-			if (e.disk_io_rate > 0) {
-				_ = win32.StrFormatByteSizeW(@intFromFloat(e.disk_io_rate), buf, @intCast(len));
-				_ = win32.lstrcatW(buf, L("/s"));
-			} else buf[0] = 0;
-		},
+		.disk_io => formatByteRate(e.disk_io_rate, buf, len),
 		.private_bytes => _ = win32.StrFormatByteSizeW(@intCast(e.private_bytes), buf, @intCast(len)),
 		.page_faults => {
 			const pf: win32.UINT = @intFromFloat(e.page_faults_per_sec + 0.5);
@@ -194,24 +188,9 @@ fn formatColumn(e: *const pt.ProcessEntry, cid: i32, buf: [*:0]u16, len: i32) vo
 		.private_ws => _ = win32.StrFormatByteSizeW(@intCast(e.private_working_set), buf, @intCast(len)),
 		.paged_pool => _ = win32.StrFormatByteSizeW(@intCast(e.paged_pool), buf, @intCast(len)),
 		.nonpaged_pool => _ = win32.StrFormatByteSizeW(@intCast(e.non_paged_pool), buf, @intCast(len)),
-		.io_read => {
-			if (e.io_read_rate > 0) {
-				_ = win32.StrFormatByteSizeW(@intFromFloat(e.io_read_rate), buf, @intCast(len));
-				_ = win32.lstrcatW(buf, L("/s"));
-			} else buf[0] = 0;
-		},
-		.io_write => {
-			if (e.io_write_rate > 0) {
-				_ = win32.StrFormatByteSizeW(@intFromFloat(e.io_write_rate), buf, @intCast(len));
-				_ = win32.lstrcatW(buf, L("/s"));
-			} else buf[0] = 0;
-		},
-		.io_other => {
-			if (e.io_other_rate > 0) {
-				_ = win32.StrFormatByteSizeW(@intFromFloat(e.io_other_rate), buf, @intCast(len));
-				_ = win32.lstrcatW(buf, L("/s"));
-			} else buf[0] = 0;
-		},
+		.io_read => formatByteRate(e.io_read_rate, buf, len),
+		.io_write => formatByteRate(e.io_write_rate, buf, len),
+		.io_other => formatByteRate(e.io_other_rate, buf, len),
 		.description => _ = win32.lstrcpynW(buf, @ptrCast(&e.description), len),
 		.company => _ = win32.lstrcpynW(buf, @ptrCast(&e.company), len),
 		.dpi => {
@@ -223,15 +202,7 @@ fn formatColumn(e: *const pt.ProcessEntry, cid: i32, buf: [*:0]u16, len: i32) vo
 			_ = win32.lstrcpynW(buf, label, len);
 		},
 		.service => _ = win32.lstrcpynW(buf, @ptrCast(&e.services), len),
-		.gpu => {
-			var whole: i32 = @intFromFloat(e.gpu_percent);
-			var frac: i32 = @intFromFloat((e.gpu_percent - @as(f64, @floatFromInt(whole))) * 100 + 0.5);
-			if (frac >= 100) {
-				whole += 1;
-				frac = 0;
-			}
-			wfmt.format(buf, len, "%d.%02d", .{ whole, frac });
-		},
+		.gpu => formatPercent(e.gpu_percent, buf, len),
 		.gpu_memory => _ = win32.StrFormatByteSizeW(@intCast(e.gpu_memory), buf, @intCast(len)),
 		.cpu_time => formatDuration(e.cpu_time, buf, len),
 		.elevated => {
@@ -408,12 +379,7 @@ var cached_count: i32 = 0;
 
 fn updateStatusBar(total_cpu: f64, count: i32) void {
 	if (state.hwnd_status == null) return;
-	var cpu_w: i32 = @intFromFloat(total_cpu);
-	var cpu_f: i32 = @intFromFloat((total_cpu - @as(f64, @floatFromInt(cpu_w))) * 100 + 0.5);
-	if (cpu_f >= 100) {
-		cpu_w += 1;
-		cpu_f = 0;
-	}
+	const cpu = wfmt.fixed2(total_cpu);
 	var ms: win32.MEMORYSTATUSEX = std.mem.zeroes(win32.MEMORYSTATUSEX);
 	ms.dwLength = @sizeOf(win32.MEMORYSTATUSEX);
 	_ = win32.GlobalMemoryStatusEx(&ms);
@@ -425,21 +391,32 @@ fn updateStatusBar(total_cpu: f64, count: i32) void {
 	const t_w: i32 = @intCast(total / gib);
 	const t_f: i32 = @intCast((total % gib) * 10 / gib);
 	var status: [128:0]u16 = std.mem.zeroes([128:0]u16);
-	wfmt.format(&status, 128, "  %d processes  |  CPU: %d.%02d%%  |  Memory: %d.%d / %d.%d GB", .{ count, cpu_w, cpu_f, iu_w, iu_f, t_w, t_f });
+	wfmt.format(&status, 128, "  %d processes  |  CPU: %d.%02d%%  |  Memory: %d.%d / %d.%d GB", .{ count, cpu.whole, cpu.frac, iu_w, iu_f, t_w, t_f });
 	_ = win32.SendMessageW(state.hwnd_status, win32.SB_SETTEXTW, 0, @bitCast(@intFromPtr(&status)));
+}
+
+// The tree is always laid out by name, whatever the list is sorted by.
+fn sortField() settings.SortField {
+	return if (state.prefs.tree_mode) .name else state.prefs.field;
+}
+
+fn sortDescending() bool {
+	return !state.prefs.tree_mode and state.prefs.desc[@intCast(@intFromEnum(state.prefs.field))];
+}
+
+fn populate(entries: [*]pt.ProcessEntry, count: i32) void {
+	const total_cpu = if (state.prefs.tree_mode) treeview.populate(entries, count) else populateList(entries, count);
+	updateStatusBar(total_cpu, count);
 }
 
 pub fn doRefresh() void {
 	var count: i32 = 0;
-	const field: settings.SortField = if (state.prefs.tree_mode) .name else state.prefs.field;
-	const desc: bool = if (state.prefs.tree_mode) false else state.prefs.desc[@intCast(@intFromEnum(state.prefs.field))];
-	const entries = process.snapshotProcesses(&state.snapshots, &count, field, desc);
+	const entries = process.snapshotProcesses(&state.snapshots, &count, sortField(), sortDescending());
 	if (entries) |es| {
 		if (cached_entries) |old| process.freeProcessEntries(old);
 		cached_entries = es;
 		cached_count = count;
-		const total_cpu = if (state.prefs.tree_mode) treeview.populate(es, count) else populateList(es, count);
-		updateStatusBar(total_cpu, count);
+		populate(es, count);
 	}
 }
 
@@ -448,11 +425,8 @@ pub fn doRefresh() void {
 // OS. Falls back to a full doRefresh() if nothing has been fetched yet.
 pub fn resort() void {
 	const es = cached_entries orelse return doRefresh();
-	const field: settings.SortField = if (state.prefs.tree_mode) .name else state.prefs.field;
-	const desc: bool = if (state.prefs.tree_mode) false else state.prefs.desc[@intCast(@intFromEnum(state.prefs.field))];
-	process.sortEntries(es, cached_count, field, desc);
-	const total_cpu = if (state.prefs.tree_mode) treeview.populate(es, cached_count) else populateList(es, cached_count);
-	updateStatusBar(total_cpu, cached_count);
+	process.sortEntries(es, cached_count, sortField(), sortDescending());
+	populate(es, cached_count);
 }
 
 pub fn listKeyProc(hwnd: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win32.LPARAM, id: win32.UINT_PTR, data: win32.DWORD_PTR) callconv(.c) win32.LRESULT {

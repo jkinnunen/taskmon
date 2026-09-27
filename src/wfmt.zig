@@ -53,6 +53,20 @@ fn putInt(buf: [*]u16, pos: *i32, len: i32, value: i64, width: u8, zero_pad: boo
 	}
 }
 
+pub const Fixed2 = struct { whole: i32, frac: i32 };
+
+/// Splits a non-negative value into its whole part and hundredths, rounded, for
+/// printing as "%d.%02d" - wfmt has no floating point specifier of its own.
+pub fn fixed2(value: f64) Fixed2 {
+	var whole: i32 = @intFromFloat(value);
+	var frac: i32 = @intFromFloat((value - @as(f64, @floatFromInt(whole))) * 100 + 0.5);
+	if (frac >= 100) {
+		whole += 1;
+		frac = 0;
+	}
+	return .{ .whole = whole, .frac = frac };
+}
+
 // A tiny printf subset (%u %d %s %x %X %%, with an optional zero-pad flag and
 // width) evaluated entirely at comptime: it walks the format string as an
 // inline while loop, so every specifier/argument pairing - including the

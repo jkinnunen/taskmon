@@ -88,13 +88,8 @@ fn appendPercent(out: [*:0]u16, cap: usize, pos: *usize, value: f64) void {
 	if (value < 0) {
 		wfmt.format(&buf, 32, "--", .{});
 	} else {
-		var whole: i32 = @intFromFloat(value);
-		var frac: i32 = @intFromFloat((value - @as(f64, @floatFromInt(whole))) * 100.0 + 0.5);
-		if (frac >= 100) {
-			whole += 1;
-			frac = 0;
-		}
-		wfmt.format(&buf, 32, "%d.%02d", .{ whole, frac });
+		const v = wfmt.fixed2(value);
+		wfmt.format(&buf, 32, "%d.%02d", .{ v.whole, v.frac });
 	}
 	appendText(out, cap, pos, &buf);
 }
