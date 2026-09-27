@@ -163,7 +163,7 @@ Taskmon supports the following keyboard shortcuts for quick navigation and contr
 * F5: Refresh the current tab manually.
 * Ctrl+N: Open the Run dialog to start a new task.
 * Ctrl+T: Toggle between the list and process tree views. Processes tab only.
-* Ctrl+Tab: Move to the next tab. Ctrl+Shift+Tab moves to the previous one.
+* Ctrl+Tab: Move to the next tab. Ctrl+Shift+Tab moves to the previous one. In the Settings dialog these switch between the General and Columns tabs, as do Ctrl+Page Down and Ctrl+Page Up.
 * Ctrl+F: Open the Find dialog to search the current tab.
 * F3: Move to the next match. Shift+F3 moves to the previous one.
 * Ctrl+,: Open the Settings dialog to customize columns and refresh rates.

@@ -255,6 +255,52 @@ const TAB_TEMPLATES: [TAB_COUNT]usize = .{ resource.IDD_TAB_GENERAL, resource.ID
 // The settings dialog is modal, so only one set of pages is ever live; keeping
 // them here saves threading the handles through every message handler.
 var tab_pages: [TAB_COUNT]win32.HWND = .{ null, null };
+var settings_dlg: win32.HWND = null;
+var page_keys_hook: win32.HHOOK = null;
+
+fn showPage(index: usize) void {
+	for (0..TAB_COUNT) |i| _ = win32.ShowWindow(tab_pages[i], if (i == index) win32.SW_SHOW else win32.SW_HIDE);
+}
+
+// Switches page from the keyboard the way a property sheet does. Focus stays
+// on the strip if it was there; otherwise it moves to the new page's first
+// control, so a screen reader announces the page by name on the way in.
+fn cyclePage(delta: usize) void {
+	const tab = win32.GetDlgItem(settings_dlg, resource.IDC_SETTINGS_TAB);
+	const cur: usize = @intCast(win32.SendMessageW(tab, win32.TCM_GETCURSEL, 0, 0));
+	const next = (cur + delta) % TAB_COUNT;
+	_ = win32.SendMessageW(tab, win32.TCM_SETCURSEL, next, 0);
+	showPage(next);
+	if (win32.GetFocus() == tab) return;
+	const first = win32.GetNextDlgTabItem(tab_pages[next], null, 0);
+	if (first != null) _ = win32.SendMessageW(settings_dlg, win32.WM_NEXTDLGCTL, @intFromPtr(first), 1);
+}
+
+// Ctrl+Tab/Ctrl+Shift+Tab and Ctrl+PgDn/Ctrl+PgUp change page. The dialog's
+// modal loop never reaches the main window's accelerators, and the dialog
+// manager would take Ctrl+Tab for a plain Tab, so a message filter hook sees
+// the keys before it does.
+fn pageKeysHook(code: c_int, wp: win32.WPARAM, lp: win32.LPARAM) callconv(.c) win32.LRESULT {
+	if (code == win32.MSGF_DIALOGBOX) {
+		const m: *const win32.MSG = @ptrFromInt(@as(usize, @bitCast(lp)));
+		if (m.message == win32.WM_KEYDOWN and win32.GetKeyState(win32.VK_CONTROL) < 0 and
+			(m.hwnd == settings_dlg or win32.IsChild(settings_dlg, m.hwnd) != 0))
+		{
+			const back = TAB_COUNT - 1;
+			const delta: ?usize = switch (m.wParam) {
+				win32.VK_TAB => if (win32.GetKeyState(win32.VK_SHIFT) < 0) back else 1,
+				win32.VK_NEXT => 1,
+				win32.VK_PRIOR => back,
+				else => null,
+			};
+			if (delta) |d| {
+				cyclePage(d);
+				return 1;
+			}
+		}
+	}
+	return win32.CallNextHookEx(page_keys_hook, code, wp, lp);
+}
 
 fn dlgData(hdlg: win32.HWND) *Prefs {
 	return @ptrFromInt(@as(usize, @bitCast(win32.GetWindowLongPtrW(hdlg, win32.DWLP_USER))));
@@ -421,6 +467,8 @@ fn settingsDlgProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win3
 	switch (msg) {
 		win32.WM_INITDIALOG => {
 			_ = win32.SetWindowLongPtrW(hdlg, win32.DWLP_USER, lp);
+			settings_dlg = hdlg;
+			page_keys_hook = win32.SetWindowsHookExW(win32.WH_MSGFILTER, pageKeysHook, null, win32.GetCurrentThreadId());
 			theme.applyTitlebar(hdlg);
 			const tab = win32.GetDlgItem(hdlg, resource.IDC_SETTINGS_TAB);
 			_ = win32.SendMessageW(tab, win32.WM_SETFONT, @bitCast(win32.SendMessageW(hdlg, win32.WM_GETFONT, 0, 0)), 0);
@@ -451,6 +499,9 @@ fn settingsDlgProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win3
 			var behind = tab;
 			for (0..TAB_COUNT) |i| {
 				tab_pages[i] = win32.CreateDialogParamW(instance, @ptrFromInt(TAB_TEMPLATES[i]), hdlg, if (i == 0) generalPageProc else columnsPageProc, lp);
+				// Never drawn, since the pages have no caption, but it is their
+				// accessible name: "General property page" rather than a bare one.
+				_ = win32.SetWindowTextW(tab_pages[i], TAB_LABELS[i]);
 				_ = win32.SetWindowPos(tab_pages[i], behind, placed.left, placed.top + strip, width, placed.bottom - placed.top - strip, win32.SWP_NOACTIVATE);
 				_ = win32.ShowWindow(tab_pages[i], if (i == 0) win32.SW_SHOW else win32.SW_HIDE);
 				behind = tab_pages[i];
@@ -464,8 +515,7 @@ fn settingsDlgProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win3
 		win32.WM_NOTIFY => {
 			const hdr: *const win32.NMHDR = @ptrFromInt(@as(usize, @bitCast(lp)));
 			if (hdr.idFrom == resource.IDC_SETTINGS_TAB and hdr.code == @as(win32.UINT, @bitCast(win32.TCN_SELCHANGE))) {
-				const cur = win32.SendMessageW(hdr.hwndFrom, win32.TCM_GETCURSEL, 0, 0);
-				for (0..TAB_COUNT) |i| _ = win32.ShowWindow(tab_pages[i], if (i == @as(usize, @intCast(cur))) win32.SW_SHOW else win32.SW_HIDE);
+				showPage(@intCast(win32.SendMessageW(hdr.hwndFrom, win32.TCM_GETCURSEL, 0, 0)));
 				return 1;
 			}
 		},
@@ -502,6 +552,10 @@ fn settingsDlgProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win3
 				_ = win32.EndDialog(hdlg, 0);
 				return 1;
 			}
+		},
+		win32.WM_DESTROY => {
+			if (page_keys_hook != null) _ = win32.UnhookWindowsHookEx(page_keys_hook);
+			page_keys_hook = null;
 		},
 		else => {},
 	}
