@@ -43,21 +43,21 @@ pub const ColumnDef = struct {
 	label: win32.LPCWSTR,
 	width: i32,
 	field: SortField,
-	always_visible: bool,
-	default_visible: bool,
+	always_visible: bool = false,
+	default_visible: bool = false,
 };
 
-pub const COL_COUNT: usize = 9;
+pub const COL_COUNT: usize = std.enums.values(SortField).len;
 pub const COLUMNS: [COL_COUNT]ColumnDef = .{
 	.{ .label = L("Name"), .width = 200, .field = .name, .always_visible = true, .default_visible = true },
-	.{ .label = L("Display Name"), .width = 300, .field = .display, .always_visible = false, .default_visible = true },
-	.{ .label = L("Status"), .width = 110, .field = .status, .always_visible = false, .default_visible = true },
-	.{ .label = L("Startup Type"), .width = 110, .field = .start_type, .always_visible = false, .default_visible = true },
-	.{ .label = L("PID"), .width = 80, .field = .pid, .always_visible = false, .default_visible = true },
-	.{ .label = L("Log On As"), .width = 180, .field = .log_on_as, .always_visible = false, .default_visible = false },
-	.{ .label = L("Binary Path"), .width = 400, .field = .binary_path, .always_visible = false, .default_visible = false },
-	.{ .label = L("Service Type"), .width = 130, .field = .service_type, .always_visible = false, .default_visible = false },
-	.{ .label = L("Group"), .width = 130, .field = .group, .always_visible = false, .default_visible = false },
+	.{ .label = L("Display Name"), .width = 300, .field = .display, .default_visible = true },
+	.{ .label = L("Status"), .width = 110, .field = .status, .default_visible = true },
+	.{ .label = L("Startup Type"), .width = 110, .field = .start_type, .default_visible = true },
+	.{ .label = L("PID"), .width = 80, .field = .pid, .default_visible = true },
+	.{ .label = L("Log On As"), .width = 180, .field = .log_on_as },
+	.{ .label = L("Binary Path"), .width = 400, .field = .binary_path },
+	.{ .label = L("Service Type"), .width = 130, .field = .service_type },
+	.{ .label = L("Group"), .width = 130, .field = .group },
 };
 
 // populate() renders COLUMNS[0] from the item label rather than a subitem, and

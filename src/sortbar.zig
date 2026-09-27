@@ -172,7 +172,7 @@ pub fn applyColumns() void {
 		state.sort_btn_count += 1;
 		var lvc: win32.LVCOLUMNW = std.mem.zeroes(win32.LVCOLUMNW);
 		lvc.mask = win32.LVCF_TEXT | win32.LVCF_WIDTH | win32.LVCF_SUBITEM;
-		lvc.pszText = @constCast(settings.COLUMNS[ci].header);
+		lvc.pszText = @constCast(settings.COLUMNS[ci].header orelse settings.COLUMNS[ci].label);
 		lvc.cx = settings.COLUMNS[ci].width;
 		lvc.iSubItem = lv_col;
 		_ = win32.SendMessageW(state.hwnd_list, win32.LVM_INSERTCOLUMNW, @intCast(lv_col), @bitCast(@intFromPtr(&lvc)));
