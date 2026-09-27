@@ -41,7 +41,11 @@ pub const DEFAULT_TEMPLATE = L("CPU {cpu}%, {mem} memory used");
 // Tokens are deliberately system-wide and cheap to read, so the tooltip shows
 // the same thing no matter which tab happens to be open, and costs nothing to
 // keep current while the window is hidden.
-pub const TOKENS = L("{cpu} {mem} {mem_total} {mem_percent} {processes} {threads} {handles}");
+const TOKEN_LIST = "{cpu} {mem} {mem_total} {mem_percent} {processes} {threads} {handles}";
+pub const TOKENS = L(TOKEN_LIST);
+/// The same list as a description for the template's edit box, so a screen
+/// reader hears it on reaching the field rather than as loose dialog text.
+pub const TOKENS_DESCRIPTION = L("Available tokens: " ++ TOKEN_LIST);
 
 var prev_idle: u64 = 0;
 var prev_kernel: u64 = 0;

@@ -62,7 +62,11 @@ BEGIN
 	LTEXT "System &tray tooltip", -1, 4, 72, 170, 8
 	EDITTEXT IDC_TRAY_TIP_EDIT, 4, 84, 170, 14, ES_AUTOHSCROLL | WS_TABSTOP
 	LTEXT "Available tokens:", -1, 4, 104, 170, 8
-	LTEXT "", IDC_TRAY_TOKENS, 4, 114, 170, 28
+	// A borderless read-only edit rather than LTEXT: it looks the same, but
+	// screen readers leave read-only multiline edits out of the dialog text
+	// they speak on every entry to the page. The tray tooltip edit carries the
+	// same list as its accessible description instead.
+	EDITTEXT IDC_TRAY_TOKENS, 4, 114, 170, 28, ES_MULTILINE | ES_READONLY | NOT WS_BORDER | NOT WS_TABSTOP
 END
 
 IDD_TAB_COLUMNS DIALOGEX 0, 0, 178, 240

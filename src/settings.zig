@@ -5,6 +5,7 @@ const theme = @import("theme.zig");
 const wfmt = @import("wfmt.zig");
 const services = @import("services.zig");
 const tray = @import("tray.zig");
+const accprop = @import("accprop.zig");
 const L = std.unicode.utf8ToUtf16LeStringLiteral;
 
 pub const SortField = enum(i32) {
@@ -355,8 +356,10 @@ fn generalPageProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win3
 		_ = win32.SendDlgItemMessageW(hdlg, resource.IDC_TRAY_TIP_EDIT, win32.EM_SETLIMITTEXT, tray.TEMPLATE_LEN - 1, 0);
 		_ = win32.SetDlgItemTextW(hdlg, resource.IDC_TRAY_TIP_EDIT, &data.tray_tip);
 		_ = win32.SetDlgItemTextW(hdlg, resource.IDC_TRAY_TOKENS, tray.TOKENS);
+		accprop.setDescription(win32.GetDlgItem(hdlg, resource.IDC_TRAY_TIP_EDIT), tray.TOKENS_DESCRIPTION);
 		return 1;
 	}
+	if (msg == win32.WM_DESTROY) accprop.clearDescription(win32.GetDlgItem(hdlg, resource.IDC_TRAY_TIP_EDIT));
 	return theme.dialogColors(msg, wp);
 }
 

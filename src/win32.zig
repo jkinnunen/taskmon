@@ -687,6 +687,10 @@ pub const ERROR_ALREADY_EXISTS: DWORD = 183;
 
 pub extern "ole32" fn CoInitializeEx(pvReserved: ?*anyopaque, dwCoInit: DWORD) callconv(.c) c_long;
 pub extern "ole32" fn CoUninitialize() callconv(.c) void;
+pub extern "ole32" fn CoCreateInstance(rclsid: *const GUID, pUnkOuter: ?*anyopaque, dwClsContext: DWORD, riid: *const GUID, ppv: *?*anyopaque) callconv(.c) c_long;
+pub const CLSCTX_INPROC_SERVER: DWORD = 0x1;
+pub const OBJID_CLIENT: DWORD = 0xFFFFFFFC;
+pub const CHILDID_SELF: DWORD = 0;
 pub const COINIT_APARTMENTTHREADED: DWORD = 0x2;
 pub const COINIT_DISABLE_OLE1DDE: DWORD = 0x4;
 
