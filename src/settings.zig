@@ -194,7 +194,7 @@ comptime {
 pub const REFRESH_MS: [REFRESH_OPTION_COUNT]win32.UINT = .{ 0, 5000, 10000, 30000, 60000 };
 pub const REFRESH_LABELS: [REFRESH_OPTION_COUNT]win32.LPCWSTR = .{ L("Off"), L("5 seconds"), L("10 seconds"), L("30 seconds"), L("1 minute") };
 
-pub const SortPrefs = struct {
+pub const Prefs = struct {
 	field: SortField,
 	desc: [COL_COUNT]bool,
 	refresh_ms: win32.UINT,
@@ -216,17 +216,6 @@ pub const SortPrefs = struct {
 	window_top: i32,
 	window_width: i32,
 	window_height: i32,
-};
-
-const SettingsDlgData = struct {
-	refresh_ms: win32.UINT,
-	visible: [COL_COUNT]bool,
-	order: [COL_COUNT]u8,
-	svc_visible: [services.COL_COUNT]bool,
-	svc_order: [services.COL_COUNT]u8,
-	tray_tip: [tray.TEMPLATE_LEN:0]u16,
-	skip_kill_confirm: bool,
-	start_minimized_to_tray: bool,
 };
 
 // The Columns page drives two identical lists over different column tables, so
@@ -266,7 +255,7 @@ const TAB_TEMPLATES: [TAB_COUNT]usize = .{ resource.IDD_TAB_GENERAL, resource.ID
 // them here saves threading the handles through every message handler.
 var tab_pages: [TAB_COUNT]win32.HWND = .{ null, null };
 
-fn dlgData(hdlg: win32.HWND) *SettingsDlgData {
+fn dlgData(hdlg: win32.HWND) *Prefs {
 	return @ptrFromInt(@as(usize, @bitCast(win32.GetWindowLongPtrW(hdlg, win32.DWLP_USER))));
 }
 
@@ -352,7 +341,7 @@ fn settingsLvProc(hwnd: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win32
 
 fn generalPageProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win32.LPARAM) callconv(.c) win32.INT_PTR {
 	if (msg == win32.WM_INITDIALOG) {
-		const data: *SettingsDlgData = @ptrFromInt(@as(usize, @bitCast(lp)));
+		const data: *Prefs = @ptrFromInt(@as(usize, @bitCast(lp)));
 		const combo = win32.GetDlgItem(hdlg, resource.IDC_REFRESH_COMBO);
 		theme.applyControl(combo);
 		var sel: i32 = 0;
@@ -374,7 +363,7 @@ fn generalPageProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win3
 fn columnsPageProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win32.LPARAM) callconv(.c) win32.INT_PTR {
 	switch (msg) {
 		win32.WM_INITDIALOG => {
-			const data: *SettingsDlgData = @ptrFromInt(@as(usize, @bitCast(lp)));
+			const data: *Prefs = @ptrFromInt(@as(usize, @bitCast(lp)));
 			for (COLUMN_LISTS, 0..) |cl, which| {
 				const lv = win32.GetDlgItem(hdlg, cl.list_id);
 				_ = win32.SendMessageW(lv, win32.LVM_SETEXTENDEDLISTVIEWSTYLE, 0, win32.LVS_EX_CHECKBOXES);
@@ -516,17 +505,9 @@ fn settingsDlgProc(hdlg: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win3
 	return theme.dialogColors(msg, wp);
 }
 
-pub fn open(parent: win32.HWND, prefs: *SortPrefs) ?Changes {
-	var data: SettingsDlgData = .{
-		.refresh_ms = prefs.refresh_ms,
-		.visible = prefs.visible,
-		.order = prefs.order,
-		.svc_visible = prefs.svc_visible,
-		.svc_order = prefs.svc_order,
-		.tray_tip = prefs.tray_tip,
-		.skip_kill_confirm = prefs.skip_kill_confirm,
-		.start_minimized_to_tray = prefs.start_minimized_to_tray,
-	};
+pub fn open(parent: win32.HWND, prefs: *Prefs) ?Changes {
+	// The dialog edits a copy, so Cancel leaves prefs untouched.
+	var data = prefs.*;
 	if (win32.DialogBoxParamW(win32.GetModuleHandleW(null), @ptrFromInt(resource.IDD_SETTINGS), parent, settingsDlgProc, @bitCast(@intFromPtr(&data))) == 0) return null;
 	const changes = Changes{
 		.refresh_ms = data.refresh_ms != prefs.refresh_ms,
@@ -534,14 +515,7 @@ pub fn open(parent: win32.HWND, prefs: *SortPrefs) ?Changes {
 		.svc_columns = !std.mem.eql(bool, &data.svc_visible, &prefs.svc_visible) or !std.mem.eql(u8, &data.svc_order, &prefs.svc_order),
 		.tray_tip = !std.mem.eql(u16, &data.tray_tip, &prefs.tray_tip),
 	};
-	prefs.refresh_ms = data.refresh_ms;
-	prefs.visible = data.visible;
-	prefs.order = data.order;
-	prefs.svc_visible = data.svc_visible;
-	prefs.svc_order = data.svc_order;
-	prefs.tray_tip = data.tray_tip;
-	prefs.skip_kill_confirm = data.skip_kill_confirm;
-	prefs.start_minimized_to_tray = data.start_minimized_to_tray;
+	prefs.* = data;
 	return changes;
 }
 
@@ -643,7 +617,7 @@ fn columnLabels(comptime n: usize, comptime defs: anytype) [n]win32.LPCWSTR {
 const COLUMN_LABELS = columnLabels(COL_COUNT, COLUMNS);
 const SVC_COLUMN_LABELS = columnLabels(services.COL_COUNT, services.COLUMNS);
 
-pub fn load(prefs: *SortPrefs) void {
+pub fn load(prefs: *Prefs) void {
 	var path: [win32.MAX_PATH:0]u16 = std.mem.zeroes([win32.MAX_PATH:0]u16);
 	getIniPath(&path);
 	prefs.field = .name;
@@ -685,7 +659,7 @@ pub fn load(prefs: *SortPrefs) void {
 	getIniStr(&path, L("tray"), L("tooltip"), tray.DEFAULT_TEMPLATE, &prefs.tray_tip, tray.TEMPLATE_LEN);
 }
 
-pub fn save(prefs: *const SortPrefs) void {
+pub fn save(prefs: *const Prefs) void {
 	var path: [win32.MAX_PATH:0]u16 = std.mem.zeroes([win32.MAX_PATH:0]u16);
 	getIniPath(&path);
 	for (0..COL_COUNT) |i| {

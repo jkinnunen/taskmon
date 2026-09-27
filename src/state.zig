@@ -33,7 +33,7 @@ pub var svc_field: services.SortField = .name;
 pub var svc_desc: bool = false;
 pub var active_tab: i32 = 0;
 
-pub var prefs: settings.SortPrefs = undefined;
+pub var prefs: settings.Prefs = undefined;
 pub var snapshots: [pt.SNAPSHOT_CAPACITY]pt.SnapshotEntry = std.mem.zeroes([pt.SNAPSHOT_CAPACITY]pt.SnapshotEntry);
 pub const MUTEX_NAME = L("Local\\TaskmonSingleInstance");
 pub var mutex: win32.HANDLE = null;
