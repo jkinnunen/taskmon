@@ -57,15 +57,14 @@ pub fn main() void {
 
 fn winMain(instance: win32.HINSTANCE, show: c_int) c_int {
 	const com_init = win32.CoInitializeEx(null, win32.COINIT_APARTMENTTHREADED | win32.COINIT_DISABLE_OLE1DDE);
-	state.mutex = win32.CreateMutexW(null, 1, L("Local\\TaskmonSingleInstance"));
-	const mutex = state.mutex;
+	state.mutex = win32.CreateMutexW(null, 1, state.MUTEX_NAME);
 	if (win32.GetLastError() == win32.ERROR_ALREADY_EXISTS) {
 		const existing = win32.FindWindowW(&wndproc.CLASS_NAME, null);
 		if (existing != null) {
 			_ = win32.ShowWindow(existing, win32.SW_SHOW);
 			_ = win32.SetForegroundWindow(existing);
 		}
-		if (mutex != null) _ = win32.CloseHandle(mutex);
+		if (state.mutex != null) _ = win32.CloseHandle(state.mutex);
 		if (com_init >= 0) win32.CoUninitialize();
 		return 0;
 	}
@@ -104,7 +103,7 @@ fn winMain(instance: win32.HINSTANCE, show: c_int) c_int {
 			_ = win32.DispatchMessageW(&msg);
 		}
 	}
-	_ = win32.CloseHandle(mutex);
+	if (state.mutex != null) _ = win32.CloseHandle(state.mutex);
 	if (com_init >= 0) win32.CoUninitialize();
 	return @intCast(msg.wParam);
 }

@@ -455,7 +455,7 @@ fn handleCommand(hwnd: win32.HWND, wp: win32.WPARAM) win32.LRESULT {
 			_ = win32.DestroyWindow(hwnd);
 		} else {
 			registerToggleHotkey(hwnd);
-			state.mutex = win32.CreateMutexW(null, 1, L("Local\\TaskmonSingleInstance"));
+			state.mutex = win32.CreateMutexW(null, 1, state.MUTEX_NAME);
 		}
 		return 0;
 	}

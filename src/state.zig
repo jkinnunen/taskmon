@@ -10,6 +10,7 @@ const win32 = @import("win32.zig");
 const settings = @import("settings.zig");
 const pt = @import("process_types.zig");
 const services = @import("services.zig");
+const L = std.unicode.utf8ToUtf16LeStringLiteral;
 
 // Private window messages. Kept together so the WM_APP numbering has a single
 // owner: WM_HIDE_TO_TRAY is posted by every control subclass that handles
@@ -38,4 +39,5 @@ pub var active_tab: i32 = 0;
 
 pub var prefs: settings.SortPrefs = undefined;
 pub var snapshots: [pt.SNAPSHOT_CAPACITY]pt.SnapshotEntry = std.mem.zeroes([pt.SNAPSHOT_CAPACITY]pt.SnapshotEntry);
+pub const MUTEX_NAME = L("Local\\TaskmonSingleInstance");
 pub var mutex: win32.HANDLE = null;
