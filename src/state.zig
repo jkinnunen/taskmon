@@ -1,10 +1,6 @@
-// Shared application state. wndproc.zig depends on every other UI module
-// (theme, tray, sortbar, treeview, listview, process, settings, run), so
-// those modules can't @import wndproc.zig back to reach state it owns.
-// Hoisting the shared bits into this leaf module (which only depends on
-// win32.zig, settings.zig, and process_types.zig, none of which depend on
-// anything above them) lets every UI module reach them with a normal
-// @import instead.
+// Shared application state: the window handles, prefs and snapshot table that
+// the UI modules all read. Kept here rather than in wndproc.zig so that the
+// modules wndproc drives don't have to reach back up into it.
 const std = @import("std");
 const win32 = @import("win32.zig");
 const settings = @import("settings.zig");
