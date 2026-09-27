@@ -119,30 +119,21 @@ fn hasLiveParent(child: *const pt.ProcessEntry, entries: [*]const pt.ProcessEntr
 	return false;
 }
 
-fn insertChildren(parent: win32.HTREEITEM, parent_entry: *const pt.ProcessEntry, entries: [*]pt.ProcessEntry, count: i32, done: [*]win32.BOOL) void {
-	for (0..@intCast(count)) |idx| {
-		if (done[idx] != 0 or !isParentOf(parent_entry, &entries[idx])) continue;
-		done[idx] = 1;
-		var tvis: win32.TVINSERTSTRUCTW = std.mem.zeroes(win32.TVINSERTSTRUCTW);
-		tvis.hParent = parent;
-		tvis.hInsertAfter = win32.TVI_SORT;
-		tvis.anon.item.mask = win32.TVIF_TEXT | win32.TVIF_PARAM;
-		tvis.anon.item.pszText = @ptrCast(&entries[idx].name);
-		tvis.anon.item.lParam = @intCast(entries[idx].pid);
-		const hc = tvInsertItem(&tvis);
-		if (hc != null) insertChildren(hc, &entries[idx], entries, count, done);
-	}
-}
-
-fn insertRoot(e: *pt.ProcessEntry, entries: [*]pt.ProcessEntry, count: i32, done: [*]win32.BOOL) void {
+// Inserts `e` under `parent`, then every not-yet-placed process it parented.
+fn insertSubtree(parent: win32.HTREEITEM, e: *pt.ProcessEntry, entries: [*]pt.ProcessEntry, count: i32, done: [*]win32.BOOL) void {
 	var tvis: win32.TVINSERTSTRUCTW = std.mem.zeroes(win32.TVINSERTSTRUCTW);
-	tvis.hParent = win32.TVI_ROOT;
+	tvis.hParent = parent;
 	tvis.hInsertAfter = win32.TVI_SORT;
 	tvis.anon.item.mask = win32.TVIF_TEXT | win32.TVIF_PARAM;
 	tvis.anon.item.pszText = @ptrCast(&e.name);
 	tvis.anon.item.lParam = @intCast(e.pid);
-	const hr = tvInsertItem(&tvis);
-	if (hr != null) insertChildren(hr, e, entries, count, done);
+	const item = tvInsertItem(&tvis);
+	if (item == null) return;
+	for (0..@intCast(count)) |idx| {
+		if (done[idx] != 0 or !isParentOf(e, &entries[idx])) continue;
+		done[idx] = 1;
+		insertSubtree(item, &entries[idx], entries, count, done);
+	}
 }
 
 pub fn populate(entries: [*]pt.ProcessEntry, count: i32) f64 {
@@ -168,14 +159,14 @@ pub fn populate(entries: [*]pt.ProcessEntry, count: i32) f64 {
 			const ppid = entries[idx].parent_pid;
 			if (ppid == 0 or ppid == entries[idx].pid or !hasLiveParent(&entries[idx], entries, count)) {
 				done[idx] = 1;
-				insertRoot(&entries[idx], entries, count, done);
+				insertSubtree(win32.TVI_ROOT, &entries[idx], entries, count, done);
 			}
 		}
 		// Orphaned/cycle entries become roots too
 		for (0..@intCast(count)) |idx| {
 			if (done[idx] == 0) {
 				done[idx] = 1;
-				insertRoot(&entries[idx], entries, count, done);
+				insertSubtree(win32.TVI_ROOT, &entries[idx], entries, count, done);
 			}
 		}
 		_ = win32.HeapFree(win32.GetProcessHeap(), 0, raw_done);
@@ -229,7 +220,7 @@ pub fn selectPid(pid: win32.DWORD) void {
 	const item = findByPid(tvGetRoot(), pid);
 	if (item != null) {
 		tvSelect(item);
-		_ = win32.SendMessageW(state.hwnd_tree, win32.TVM_ENSUREVISIBLE, 0, @bitCast(@intFromPtr(item)));
+		tvEnsureVisible(item);
 	}
 }
 
