@@ -115,6 +115,19 @@ fn openItemLocation(path: [*:0]const u16) bool {
 	return @intFromPtr(win32.ShellExecuteW(null, L("open"), &folder, null, null, win32.SW_SHOW)) > 32;
 }
 
+// Called at startup and again whenever Windows switches between light and dark,
+// so every themed control has to be listed here and only here.
+fn applyTheme(hwnd: win32.HWND) void {
+	theme.applyTitlebar(hwnd);
+	theme.applyListview(state.hwnd_list);
+	theme.applyListview(state.hwnd_svc_list);
+	theme.applyTreeview(state.hwnd_tree);
+	theme.applyControl(state.hwnd_status);
+	theme.applyControl(state.hwnd_tab);
+	sortbar.applyTheme();
+	services.applyTheme();
+}
+
 fn registerToggleHotkey(hwnd: win32.HWND) void {
 	_ = win32.RegisterHotKey(hwnd, ID_HOTKEY_TOGGLE, win32.MOD_CONTROL | win32.MOD_SHIFT | win32.MOD_NOREPEAT, @intCast(win32.VK_OEM_3));
 }
@@ -630,16 +643,11 @@ pub fn wndProc(hwnd: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win32.LP
 			theme.update();
 			sortbar.applyColumns();
 			services.applyColumns();
-			theme.applyTitlebar(hwnd);
-			theme.applyListview(state.hwnd_list);
-			theme.applyListview(state.hwnd_svc_list);
-			theme.applyTreeview(state.hwnd_tree);
-			theme.applyControl(state.hwnd_status);
+			applyTheme(hwnd);
 			if (state.prefs.tree_mode) {
 				_ = win32.ShowWindow(state.hwnd_list, win32.SW_HIDE);
 				_ = win32.ShowWindow(state.hwnd_tree, win32.SW_SHOW);
 			}
-			theme.applyControl(state.hwnd_tab);
 			setTabOrder();
 			createMenuBar(hwnd);
 			tray.add(hwnd, state.WM_TRAYICON, &WINDOW_TITLE);
@@ -800,11 +808,7 @@ pub fn wndProc(hwnd: win32.HWND, msg: win32.UINT, wp: win32.WPARAM, lp: win32.LP
 				const s: win32.LPCWSTR = @ptrFromInt(@as(usize, @bitCast(lp)));
 				if (win32.lstrcmpW(s, L("ImmersiveColorSet")) == 0) {
 					theme.update();
-					theme.applyTitlebar(hwnd);
-					theme.applyListview(state.hwnd_list);
-					theme.applyTreeview(state.hwnd_tree);
-					theme.applyControl(state.hwnd_status);
-					sortbar.applyTheme();
+					applyTheme(hwnd);
 					_ = win32.RedrawWindow(hwnd, null, null, win32.RDW_INVALIDATE | win32.RDW_ERASE | win32.RDW_ALLCHILDREN);
 				}
 			}
