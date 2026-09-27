@@ -183,6 +183,12 @@ Bringing up the context menu on a process in the list or tree view provides acce
 
 ## Changelog
 
+### Version 0.4.1
+* Added Ctrl+Tab and Ctrl+Shift+Tab, as well as Ctrl+Page Down and Ctrl+Page Up, for switching between the General and Columns tabs in Settings.
+* Fixed screen readers rereading the list of tray tooltip tokens every time focus entered the General tab in Settings. The list is now announced once, when you reach the System tray tooltip field.
+* Fixed screen readers announcing an unnamed property page when tabbing into Settings. The pages are now announced as General and Columns.
+* Fixed the Services tab, its sort buttons, and the tab strip keeping the old colors when Windows switched between light and dark mode.
+
 ### Version 0.4.0
 * Added a tabbed interface. The process list now sits on a Processes tab, with a new Services tab beside it.
 * Added a Services tab covering every Windows service, with Start, Stop, Restart, and Go to process actions, and its own columns that you can show, hide, and reorder from Settings.
